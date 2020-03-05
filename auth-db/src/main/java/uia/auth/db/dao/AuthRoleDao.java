@@ -1,141 +1,66 @@
+/*******************************************************************************
+ * Copyright 2019 UIA
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
 package uia.auth.db.dao;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 
 import uia.auth.db.AuthRole;
+import uia.auth.db.conf.AuthDB;
+import uia.dao.DaoException;
+import uia.dao.DaoMethod;
+import uia.dao.TableDao;
 
-public class AuthRoleDao {
-
-    private static final String SQL_INS = "INSERT INTO auth_role(id,role_name,enabled) VALUES (?,?,?)";
-
-    private static final String SQL_UPD = "UPDATE auth_role SET role_name=?,enabled=? WHERE id=?";
-
-    private static final String SQL_SEL = "SELECT id,role_name,enabled FROM auth_role ";
-
-    private static final String SQL_SEL2 = "SELECT r.id,r.role_name,r.enabled FROM auth_role r,auth_role_user ru WHERE r.id=ru.auth_role ";
-
-    private final Connection conn;
+public class AuthRoleDao extends TableDao<AuthRole>{
 
     public AuthRoleDao(Connection conn) {
-        this.conn = conn;
+    	super(conn, AuthDB.forTable(AuthRole.class));
     }
 
-    public int insert(AuthRole data) throws SQLException {
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_INS)) {
-            ps.setLong(1, data.getId());
-            ps.setString(2, data.getRoleName());
-            ps.setString(3, data.getEnabled());
-
-            return ps.executeUpdate();
-        }
-    }
-
-    public int insert(List<AuthRole> dataList) throws SQLException {
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_INS)) {
-            for (AuthRole data : dataList) {
-                ps.setLong(1, data.getId());
-                ps.setString(2, data.getRoleName());
-                ps.setString(3, data.getEnabled());
-
-                ps.addBatch();
-            }
-            return ps.executeBatch().length;
-        }
-    }
-
-    public int update(AuthRole data) throws SQLException {
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_UPD)) {
-            ps.setString(1, data.getRoleName());
-            ps.setString(2, data.getEnabled());
-            ps.setLong(3, data.getId());
-
-            return ps.executeUpdate();
-        }
-    }
-
-    public int update(List<AuthRole> dataList) throws SQLException {
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_UPD)) {
-            for (AuthRole data : dataList) {
-                ps.setString(1, data.getRoleName());
-                ps.setString(2, data.getEnabled());
-                ps.setLong(3, data.getId());
-
-                ps.addBatch();
-            }
-            return ps.executeBatch().length;
-        }
-    }
-
-    public int delete(long id) throws SQLException {
+    @Override
+    public int deleteByPK(Object... pks) throws SQLException {
         try (PreparedStatement ps = this.conn.prepareStatement("UPDATE auth_role SET enabled='N' WHERE id=?")) {
-            ps.setLong(1, id);
-
+            ps.setLong(1, (long)pks[0]);
             return ps.executeUpdate();
         }
     }
 
-    public AuthRole selectByPK(long id) throws SQLException {
-        AuthRole result = null;
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_SEL + "WHERE id=?")) {
-            ps.setLong(1, id);
-
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                result = convert(rs);
-            }
-            return result;
-        }
-    }
-
-    public AuthRole selectByName(String roleName) throws SQLException {
-        AuthRole result = null;
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_SEL + "WHERE role_name=?")) {
+    public AuthRole selectByName(String roleName) throws SQLException, DaoException {
+    	DaoMethod<AuthRole> method = this.tableHelper.forSelect();
+        try (PreparedStatement ps = this.conn.prepareStatement(method.getSql() + "WHERE role_name=?")) {
             ps.setString(1, roleName);
-
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                result = convert(rs);
+            try(ResultSet rs = ps.executeQuery()) {
+            	return method.toOne(rs);
             }
-            return result;
         }
     }
 
-    public List<AuthRole> selectAll() throws SQLException {
-        ArrayList<AuthRole> result = new ArrayList<AuthRole>();
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_SEL + "ORDER BY role_name")) {
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                result.add(convert(rs));
-            }
-            return result;
-        }
-    }
-
-    public List<AuthRole> selectByUser(long authUser) throws SQLException {
-        ArrayList<AuthRole> result = new ArrayList<AuthRole>();
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_SEL2 + "AND ru.auth_user=? ORDER BY r.role_name")) {
+    public List<AuthRole> selectByUser(long authUser) throws SQLException, DaoException {
+    	DaoMethod<AuthRole> method = this.tableHelper.forSelect();
+        try (PreparedStatement ps = this.conn.prepareStatement(method.getSql() + " INNER JOIN auth_role_user ru ON ru.auth_role=id WHERE ru.auth_user=? ORDER BY role_name")) {
             ps.setLong(1, authUser);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                result.add(convert(rs));
+            try(ResultSet rs = ps.executeQuery()) {
+            	return method.toList(rs);
             }
-            return result;
         }
-    }
-
-    private AuthRole convert(ResultSet rs) throws SQLException {
-        AuthRole data = new AuthRole();
-
-        int index = 1;
-        data.setId(rs.getLong(index++));
-        data.setRoleName(rs.getString(index++));
-        data.setEnabled(rs.getString(index++));
-
-        return data;
     }
 }

@@ -4,6 +4,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -15,12 +16,12 @@ import org.apache.logging.log4j.Logger;
 import uia.auth.AuthValidator.AccessType;
 import uia.auth.db.AuthFunc;
 import uia.auth.db.AuthFuncRole;
-import uia.auth.db.AuthFuncRoleUserView;
-import uia.auth.db.AuthFuncRoleView;
+import uia.auth.db.ViewAuthFuncRoleUser;
+import uia.auth.db.ViewAuthFuncRole;
 import uia.auth.db.AuthFuncUser;
-import uia.auth.db.AuthFuncUserView;
+import uia.auth.db.ViewAuthFuncUser;
 import uia.auth.db.AuthUser;
-import uia.auth.db.conf.DB;
+import uia.auth.db.conf.AuthDB;
 import uia.auth.db.dao.AuthFuncDao;
 import uia.auth.db.dao.AuthFuncRoleDao;
 import uia.auth.db.dao.ViewAuthFuncRoleUserDao;
@@ -28,6 +29,7 @@ import uia.auth.db.dao.ViewAuthFuncRoleDao;
 import uia.auth.db.dao.AuthFuncUserDao;
 import uia.auth.db.dao.AuthUserDao;
 import uia.auth.db.dao.ViewAuthFuncUserDao;
+import uia.dao.DaoException;
 
 public class AuthFuncHelper implements Closeable {
 	
@@ -48,7 +50,7 @@ public class AuthFuncHelper implements Closeable {
     private ViewAuthFuncRoleUserDao fruvDao;
 
     public AuthFuncHelper() throws SQLException {
-        this.conn = DB.create();
+        this.conn = AuthDB.create();
         this.funcDao = new AuthFuncDao(this.conn);
         this.frDao = new AuthFuncRoleDao(this.conn);
         this.fuDao = new AuthFuncUserDao(this.conn);
@@ -56,8 +58,8 @@ public class AuthFuncHelper implements Closeable {
         this.fuvDao = new ViewAuthFuncUserDao(this.conn);
         this.fruvDao = new ViewAuthFuncRoleUserDao(this.conn);
     }
-
-    public AuthValidator validate(long authUser) throws SQLException {
+    
+    public AuthValidator validator(long authUser) throws SQLException, DaoException {
     	AuthUser user = new AuthUserDao(this.conn).selectByPK(authUser);
         return new AuthValidator(this.conn, user.getUserId());
     }
@@ -66,31 +68,44 @@ public class AuthFuncHelper implements Closeable {
         return new AuthValidator(this.conn, userId);
     }
 
-    public AuthValidator validate(String userId, String funcName) throws SQLException {
+    public AuthValidator validate(String userId, String funcName) throws SQLException, DaoException {
         AuthValidator aor = new AuthValidator(this.conn, userId);
         return aor.and(funcName);
     }
 
-    public void insertFunc(AuthFunc func) throws SQLException {
+    public void insertFunc(AuthFunc func) throws SQLException, DaoException {
+     	if(func.getId() == func.getParentFunc()) {
+    		throw new SQLException("id is same as parent_func");
+    	}
+     	if(func.getParentFunc() > 0 && this.funcDao.selectByPK(func.getParentFunc()) == null) {
+    		throw new SQLException("parent_func NOT FOUND");
+     	}
         this.funcDao.insert(func);
     }
 
-    public void updateFunc(AuthFunc func) throws SQLException {
+    public void updateFunc(AuthFunc func) throws SQLException, DaoException {
+     	if(func.getId() == func.getParentFunc()) {
+    		throw new SQLException("id is same as parent_func");
+    	}
+     	if(func.getParentFunc() > 0 && this.funcDao.selectByPK(func.getParentFunc()) == null) {
+    		throw new SQLException("parent_func NOT FOUND");
+     	}
         this.funcDao.update(func);
     }
 
-    public void deleteFunc(long authFunc) throws SQLException {
-        this.conn.setAutoCommit(false);
+    public void deleteFunc(long authFunc) throws SQLException, DaoException {
         try {
+            this.conn.setAutoCommit(false);
+
             for (AuthFunc func : this.funcDao.searchNexts(authFunc)) {
                 this.frDao.delete(func.getId());
                 this.fuDao.delete(func.getId());
-                this.funcDao.delete(func.getId());
+                this.funcDao.deleteByPK(func.getId());
             }
 
             this.frDao.delete(authFunc);
             this.fuDao.delete(authFunc);
-            this.funcDao.delete(authFunc);
+            this.funcDao.deleteByPK(authFunc);
 
             this.conn.commit();
         }
@@ -100,19 +115,37 @@ public class AuthFuncHelper implements Closeable {
         }
     }
 
-    public List<AuthFunc> searchFuncs() throws SQLException {
+    public List<AuthFunc> searchFuncs() throws SQLException, DaoException {
         return this.funcDao.selectAll();
     }
 
-    public AuthFunc searchFunc(long authFunc) throws SQLException {
+    public List<AuthFuncNode> searchFuncs(String funcName, int deep) throws SQLException, DaoException {
+    	ArrayList<AuthFuncNode> nodes = new ArrayList<>();
+
+    	List<AuthFunc> funcs =  this.funcDao.searchParents(funcName);
+    	for(AuthFunc func : funcs) {
+        	AuthFuncNode node = new AuthFuncNode(
+        			func.getId(), 
+        			func.getFuncName(), 
+        			func.getFuncDescription(), 
+        			func.getFuncArgs(), 
+        			func.getParentFunc());
+        	
+        	nodes.add(node);
+    	}
+    	
+    	return nodes;
+    }
+
+    public AuthFunc searchFunc(long authFunc) throws SQLException, DaoException {
         return this.funcDao.selectByPK(authFunc);
     }
 
-    public List<AuthFuncRoleView> searchFuncRoles(long authFunc) throws SQLException {
+    public List<ViewAuthFuncRole> searchFuncRoles(long authFunc) throws SQLException, DaoException {
         return this.frvDao.selectByFunc(authFunc);
     }
 
-    public List<AuthFuncRoleView> searchFuncRoles(String funcName) throws SQLException {
+    public List<ViewAuthFuncRole> searchFuncRoles(String funcName) throws SQLException, DaoException {
         return this.frvDao.selectByFunc(funcName);
     }
 
@@ -122,7 +155,7 @@ public class AuthFuncHelper implements Closeable {
      * @return Root nodes.
      * @throws SQLException Failed to build a function tree.
      */
-    public List<AuthFuncNode> scanFuncNodes() throws SQLException {
+    public List<AuthFuncNode> scanFuncNodes() throws SQLException, DaoException {
     	return searchFuncNodesMap().values()
     			.stream()
 				.filter(n -> n.isFirst())
@@ -136,11 +169,11 @@ public class AuthFuncHelper implements Closeable {
      * @return Root nodes.
      * @throws SQLException Failed to build a function tree.
      */
-    public List<AuthFuncNode> scanRoleFuncNodes(long authRole) throws SQLException {
+    public List<AuthFuncNode> scanRoleFuncNodes(long authRole) throws SQLException, DaoException {
     	Map<Long, AuthFuncNode> nodes = searchFuncNodesMap();
     	
-    	List<AuthFuncRoleView> frvs = this.frvDao.selectByRole(authRole);
-    	for(AuthFuncRoleView frv: frvs) {
+    	List<ViewAuthFuncRole> frvs = this.frvDao.selectByRole(authRole);
+    	for(ViewAuthFuncRole frv: frvs) {
     		AuthFuncNode node = nodes.get(frv.getAuthFunc());
     		if(node == null) {
     			continue;
@@ -166,6 +199,28 @@ public class AuthFuncHelper implements Closeable {
     			.collect(Collectors.toList());
     }
     
+    public Map<String, AuthValidator.UserAccessInfo> scan(String userId, String funcName) throws SQLException, DaoException {
+    	TreeMap<String, AuthValidator.UserAccessInfo> result = new TreeMap<>();
+    	AuthFunc root = this.funcDao.selectByName(funcName);
+    	if(root == null) {
+    		return result;
+    	}
+
+    	AuthValidator av1 = new AuthValidator(this.conn, userId).and(root.getFuncName());
+    	result.put(
+    			root.getFuncName(), 
+    			av1.resultInfo(root.getFuncArgs(), av1.getPower().getArgs()));
+    	List<AuthFunc> afs = this.funcDao.searchNexts(root.getId());
+    	for(AuthFunc af : afs) {
+    		AuthValidator av2 = new AuthValidator(this.conn, userId).and(af.getFuncName());
+        	result.put(
+        			af.getFuncName(), 
+        			av2.resultInfo(root.getFuncArgs(), av2.getPower().getArgs()));
+    	}
+    	
+    	return result;
+    }
+    
     /**
      * Builds a specific user's function tree with access information.
      * 
@@ -173,11 +228,11 @@ public class AuthFuncHelper implements Closeable {
      * @return Root nodes.
      * @throws SQLException Failed to build a function tree.
      */
-    public List<AuthFuncNode> scanUserFuncNodes(long authUser) throws SQLException {
+    public List<AuthFuncNode> scanUserFuncNodes(long authUser) throws SQLException, DaoException {
     	Map<Long, AuthFuncNode> nodes = searchFuncNodesMap();
     	
-    	List<AuthFuncRoleUserView> fruvs = this.fruvDao.selectByUser(authUser);
-    	for(AuthFuncRoleUserView fruv: fruvs) {
+    	List<ViewAuthFuncRoleUser> fruvs = this.fruvDao.selectByUser(authUser);
+    	for(ViewAuthFuncRoleUser fruv: fruvs) {
     		AuthFuncNode node = nodes.get(fruv.getAuthFunc());
     		if(node == null) {
     			continue;
@@ -197,8 +252,8 @@ public class AuthFuncHelper implements Closeable {
     		}
     	}
 
-    	List<AuthFuncUserView> fuvs = this.fuvDao.selectByUser(authUser);
-    	for(AuthFuncUserView fuv: fuvs) {
+    	List<ViewAuthFuncUser> fuvs = this.fuvDao.selectByUser(authUser);
+    	for(ViewAuthFuncUser fuv: fuvs) {
     		AuthFuncNode node = nodes.get(fuv.getAuthFunc());
     		if(node == null) {
     			continue;
@@ -224,56 +279,56 @@ public class AuthFuncHelper implements Closeable {
     			.collect(Collectors.toList());
     }
 
-    public List<AuthFuncRoleView> searchRoleFuncs(long authRole) throws SQLException {
+    public List<ViewAuthFuncRole> searchRoleFuncs(long authRole) throws SQLException, DaoException {
         return this.frvDao.selectByRole(authRole);
     }
 
-    public List<AuthFuncRoleView> searchRoleFuncs(String roleName) throws SQLException {
+    public List<ViewAuthFuncRole> searchRoleFuncs(String roleName) throws SQLException, DaoException {
         return this.frvDao.selectByRole(roleName);
     }
 
-    public void insertFuncRole(AuthFuncRole fr) throws SQLException {
+    public void insertFuncRole(AuthFuncRole fr) throws SQLException, DaoException {
         this.frDao.insert(fr);
     }
 
-    public void updateFuncRole(AuthFuncRole fr) throws SQLException {
+    public void updateFuncRole(AuthFuncRole fr) throws SQLException, DaoException {
         this.frDao.update(fr);
     }
 
     public void deleteFuncRole(long authFunc, long authRole) throws SQLException {
-        this.frDao.delete(authFunc, authRole);
+        this.frDao.deleteByPK(authFunc, authRole);
     }
 
-    public List<AuthFuncUserView> searchFuncUsers(long authFunc) throws SQLException {
+    public List<ViewAuthFuncUser> searchFuncUsers(long authFunc) throws SQLException, DaoException {
         return this.fuvDao.selectByFunc(authFunc);
     }
 
-    public List<AuthFuncUserView> searchFuncUsers(String funcName) throws SQLException {
+    public List<ViewAuthFuncUser> searchFuncUsers(String funcName) throws SQLException, DaoException {
         return this.fuvDao.selectByFunc(funcName);
     }
 
-    public List<AuthFuncUserView> searchUserFuncs(long authUser) throws SQLException {
+    public List<ViewAuthFuncUser> searchUserFuncs(long authUser) throws SQLException, DaoException {
         return this.fuvDao.selectByUser(authUser);
     }
 
-    public List<AuthFuncUserView> searchUserFuncs(String userId) throws SQLException {
+    public List<ViewAuthFuncUser> searchUserFuncs(String userId) throws SQLException, DaoException {
         return this.fuvDao.selectByUser(userId);
     }
 
-    public void insertFuncUser(AuthFuncUser fu) throws SQLException {
+    public void insertFuncUser(AuthFuncUser fu) throws SQLException, DaoException {
         this.fuDao.insert(fu);
     }
 
-    public void updateFuncUser(AuthFuncUser fu) throws SQLException {
+    public void updateFuncUser(AuthFuncUser fu) throws SQLException, DaoException {
         this.fuDao.update(fu);
     }
  
     public void deleteFuncUser(long authFunc, long authUser) throws SQLException {
-        this.fuDao.delete(authFunc, authUser);
+        this.fuDao.deleteByPK(authFunc, authUser);
     }
 
-    private Map<Long, AuthFuncNode> searchFuncNodesMap() throws SQLException {
-    	TreeMap<Long, AuthFuncNode> result = new TreeMap<Long, AuthFuncNode>();
+    private Map<Long, AuthFuncNode> searchFuncNodesMap() throws SQLException, DaoException {
+    	TreeMap<Long, AuthFuncNode> result = new TreeMap<>();
 
         List<AuthFunc> afs = this.funcDao.selectAll();
         for(AuthFunc af : afs) {
@@ -281,7 +336,8 @@ public class AuthFuncHelper implements Closeable {
         			af.getId(), 
         			af.getFuncName(), 
         			af.getFuncDescription(),
-        			af.getParentFunc() == null ? 0 : af.getParentFunc());
+        			af.getFuncArgs(),
+        			af.getParentFunc());
         	result.put(af.getId(), node);
         	
         	AuthFuncNode pn = result.get(af.getParentFunc());

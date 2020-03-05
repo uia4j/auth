@@ -22,7 +22,7 @@ import uia.auth.AuthFuncHelper;
 import uia.auth.AuthUserHelper;
 import uia.auth.AuthValidator; 
 import uia.auth.AuthValidator.AccessType;
-import uia.auth.db.AuthSecurityView;
+import uia.auth.db.ViewAuthSecurity;
 import uia.auth.ee.Secured;
 
 @Secured
@@ -36,7 +36,7 @@ public class AuthRequestFilter implements ContainerRequestFilter {
 
     private static String REALM = "AUTH";
 
-    private static long TIMEOUT = 60000;
+    private static long TIMEOUT = 20000;
     
     public static void config(String realm, long timeout) {
     	REALM = realm;
@@ -82,30 +82,83 @@ public class AuthRequestFilter implements ContainerRequestFilter {
          */
 
         String baHeader = requestContext.getHeaderString(HttpHeaders.AUTHORIZATION);
+        String user = requestContext.getHeaderString(AuthHeaders.USER);
         String session = requestContext.getHeaderString(AuthHeaders.SESSION);
+    	LOGGER.info("auth> filter> USER=" + user);
+    	LOGGER.info("auth> filter> SESSION=" + session);
+    	LOGGER.info("auth> filter> BA=" + baHeader);
 
         // 1. Authentication
-        if (secured.authentication()) {
-        	if(session != null && !validateSession(requestContext, session, baHeader)) {
- 	    		return;
-        	}
-        	else if (!validateBA(requestContext, baHeader, secured.authentication())) {
-                return;
-            }
+    	String userId = null;
+    	if(secured.admin()) {
+        	LOGGER.info("auth> filter> admin");
+        	userId = validateBA(requestContext, baHeader, true);
+    	}
+    	else {
+    		userId = validateAuthentication(requestContext, user, session, baHeader);
+        	LOGGER.info("auth> filter> authentication:" + userId);
         }
+    	if(userId == null) {
+    		return;
+    	}
 
         // 2. Authorization
-    	if(!validateAccess(requestContext, secured)) {
+    	if(!validateAccess(requestContext, secured, userId)) {
             abortSession(requestContext, HttpServletResponse.SC_UNAUTHORIZED, "access deny");
     	}
     }
+    
+    private String validateAuthentication(ContainerRequestContext ctx, String userId, String session, String baHeader) {
+    	try(AuthUserHelper helper = new AuthUserHelper()) {
+        	ViewAuthSecurity security = null;
+        	if(session != null) {
+        		security = helper.searchSecurityBySession(session);
+        	}
+        	else if(userId != null) {
+        		security = helper.searchSecurityByUserId(userId);
+        	}
 
-    private boolean validateBA(ContainerRequestContext ctx, String baHeader, boolean authentication) {
-    	LOGGER.info("auth> filter> BA=" + baHeader);
+        	if(security == null) {
+        		if(baHeader == null) {
+            	    LOGGER.info("auth> filter> SESSION,USER,BA not found");
+	                abortBA(ctx, "SESSION,USER,BA not found");					// 強迫重新驗證
+	                return null;
+        		}
+        		else {
+            		return validateBA(ctx, baHeader, false);
+        		}
+        	}
 
+		    LOGGER.info(String.format("auth> filter> SESSION user:%s expire on %s", 
+		    		security.getUserId(), 
+		    		security.getTokenExpired()));
+        	
+            // 逾時
+			if(System.currentTimeMillis() >= security.getTokenExpired().getTime()) {
+        		// 更換逾時時間和 Session 編號
+				ViewAuthSecurity vas = helper.udpateToken(security.getUserId(), TIMEOUT);
+    		    LOGGER.info(String.format("auth> filter> SESSION user:%s expired, new:%s", security.getUserId(), vas.getToken()));
+                abortBA(ctx, "session expired");								// 強迫重新驗證
+				return null;
+			}
+
+			// 用戶確認
+		    LOGGER.info(String.format("auth> filter> SESSION user:%s pass", security.getUserId()));
+        	ctx.getHeaders().putSingle(AuthHeaders.USER, security.getUserId());
+        	ctx.getHeaders().putSingle(AuthHeaders.SESSION, security.getToken());
+        	return security.getUserId();
+        }
+        catch(Exception ex) {
+		    LOGGER.error("auth> filter> SESSION error", ex);
+            abortBA(ctx, "internal error: "  + ex.getMessage());				// 強迫重新驗證
+            return null;
+        }
+    }
+
+    private String validateBA(ContainerRequestContext ctx, String baHeader, boolean admin) {
     	if(baHeader == null || !baHeader.startsWith(BA_SCHEME + " ")) {
     		abortBA(ctx, "BA token failed");
-            return false;
+            return null;
         }
 
         String token = baHeader.substring(BA_SCHEME.length()).trim();
@@ -115,7 +168,7 @@ public class AuthRequestFilter implements ContainerRequestFilter {
         if (up.length != 2) {
 		    LOGGER.error("auth> filter> BA format is wrong");
             abortBA(ctx, "authentication failed: format");						// 強迫重新驗證
-            return false;
+            return null;
         }
 
         String userId = up[0].trim();
@@ -131,82 +184,49 @@ public class AuthRequestFilter implements ContainerRequestFilter {
     		if(!ok) {
     		    LOGGER.info(String.format("auth> filter> BA user:%s failed", userId));
                 abortBA(ctx, "authentication failed: password");				// 強迫重新驗證
-    			return false;
+    			return null;
     		}
     		
-    		AuthSecurityView security = helper.searchSecurityByUserId(userId);
+    		ViewAuthSecurity security = helper.searchSecurityByUserId(userId);
 
-            // 逾時
+		    // 逾時
         	boolean expired = System.currentTimeMillis() >= security.getTokenExpired().getTime();
         	boolean expiredShort = System.currentTimeMillis() >= security.getTokenExpiredShort().getTime();
-        	if((authentication && expiredShort)) {
+        	if((admin && expiredShort)) {
         		// 僅調整逾時時間，不更換 Session 編號
     		    LOGGER.info(String.format("auth> filter> BA user:%s expired, updateTokenTime", userId));
         		helper.udpateTokenTime(userId, TIMEOUT);
-                abortBA(ctx, "basic authentication first");			// 強迫重新驗證
-        		return false;
+                abortBA(ctx, "basic authentication first");					// 強迫重新驗證
+        		return null;
         	}
         	else if(expired) {
         		// 更換逾時時間和 Session 編號
     		    LOGGER.info(String.format("auth> filter> BA user:%s expired, updateToken", userId));
         		helper.udpateToken(userId, TIMEOUT);
-                abortBA(ctx, "session expired");					// 強迫重新驗證
-        		return false;
+                abortBA(ctx, "session expired");								// 強迫重新驗證
+        		return null;
         	}
  
 			// 用戶確認
 			// Session 確認
 		    LOGGER.info(String.format("auth> filter> BA user:%s pass", userId));
-            ctx.getHeaders().putSingle(AuthHeaders.USER, userId);
-			ctx.getHeaders().putSingle(AuthHeaders.SESSION, security.getToken());
-            return true;
+		    if(!admin) {
+	            ctx.getHeaders().putSingle(AuthHeaders.USER, userId);
+				ctx.getHeaders().putSingle(AuthHeaders.SESSION, security.getToken());
+		    }
+		    else {
+	            ctx.getHeaders().putSingle(AuthHeaders.ADMIN, userId);
+		    }
+            return userId;
     	}
     	catch(Exception ex) {
 		    LOGGER.error(String.format("auth> filter> BA user:%s error", userId), ex);
-            abortBA(ctx, "internal error: "  + ex.getMessage());	// 強迫重新驗證
-    		return false;
+            abortBA(ctx, "internal error: "  + ex.getMessage());				// 強迫重新驗證
+    		return null;
     	}
     }
-    
-    private boolean validateSession(ContainerRequestContext ctx, String session, String baHeader) {
-    	LOGGER.info("auth> filter> SESSION=" + session);
-    	try(AuthUserHelper helper = new AuthUserHelper()) {
-        	AuthSecurityView security = helper.searchSecurityBySession(session);
 
-        	if(security == null) {
-        	    LOGGER.info("auth> filter> SESSION not found");
-        		if(baHeader == null) {
-	                abortBA(ctx, "SESSION not found");				// 強迫重新驗證
-	                return false;
-        		}
-        		else {
-            		return validateBA(ctx, baHeader, false);
-        		}
-        	}
-        	
-            // 逾時
-			if(System.currentTimeMillis() >= security.getTokenExpired().getTime()) {
-        		// 更換逾時時間和 Session 編號
-    		    LOGGER.info(String.format("auth> filter> SESSION user:%s expired", security.getUserId()));
-				helper.udpateToken(security.getUserId(), TIMEOUT);
-                abortBA(ctx, "session expired");					// 強迫重新驗證
-				return false;
-			}
-
-			// 用戶確認
-		    LOGGER.info(String.format("auth> filter> SESSION user:%s pass", security.getUserId()));
-        	ctx.getHeaders().putSingle(AuthHeaders.USER, "" + helper.searchUser(security.getAuthUser()).getUserId());
-        	return true;
-        }
-        catch(Exception ex) {
-		    LOGGER.error("auth> filter> SESSION error", ex);
-            abortBA(ctx, "internal error: "  + ex.getMessage());	// 強迫重新驗證
-            return false;
-        }
-    }
-
-    private boolean validateAccess(ContainerRequestContext ctx, Secured secured) {
-        String userId = ctx.getHeaderString(AuthHeaders.USER);
+    private boolean validateAccess(ContainerRequestContext ctx, Secured secured, String userId) {
         AccessType at = AccessType.WRITE;
 
         String[] funcs = secured.authorization();
@@ -217,15 +237,15 @@ public class AuthRequestFilter implements ContainerRequestFilter {
         
         try(AuthFuncHelper helper = new AuthFuncHelper()) {
         	AuthValidator validator = helper.validate(userId);
-        	if(secured.priority()) {
+        	if(Secured.StrategyType.OR == secured.strategy()) {
         		for(String func : funcs) {
-        			validator.and(func);
+        			validator.or(func);
         		}
     			at = validator.result();
         	}
         	else {
         		for(String func : funcs) {
-        			validator.or(func);
+        			validator.and(func);
         		}
     			at = validator.result();
         	}
@@ -241,20 +261,17 @@ public class AuthRequestFilter implements ContainerRequestFilter {
     }
 
     private void abortBA(ContainerRequestContext requestContext, String message) {
-    	requestContext.getHeaders().putSingle(AuthHeaders.SESSION, null);
 		requestContext.abortWith(
                 Response.status(HttpServletResponse.SC_UNAUTHORIZED)									// 401
-                		.header(AuthHeaders.SESSION, null)
                         .header(HttpHeaders.WWW_AUTHENTICATE, BA_SCHEME + " realm=\"" + REALM + "\"")	// force to login
                         .entity(message)
                         .build());
     }
 
     private void abortSession(ContainerRequestContext requestContext, int responseType, String message) {
-    	requestContext.getHeaders().putSingle(AuthHeaders.SESSION, null);
         requestContext.abortWith(
         		Response.status(responseType)
-        				.header(AuthHeaders.SESSION, null)
+        				.header("auth-reason", message)
         				.entity(message)
         		        .build());
     }

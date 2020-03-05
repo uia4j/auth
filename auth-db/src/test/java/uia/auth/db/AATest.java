@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2018 UIA
+ * Copyright 2019 UIA
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements. See the NOTICE file distributed with
@@ -16,33 +16,40 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *******************************************************************************/
-package uia.auth.db.conf;
+package uia.auth.db;
 
 import java.sql.Connection;
-import java.sql.SQLException;
 
-/**
- *
- * @author fw
- *
- */
-public class DB {
+import org.junit.Test;
 
-    public static void config(String host, String port, String pwd) {
-        if ("HANA".equals(System.getProperty("auth.db.env"))) {
-            Hana.config(host, port, pwd);
-        }
-        else {
-            Postgres.config(host, port, pwd);
-        }
+import uia.auth.db.conf.AuthDB;
+import uia.dao.DaoFactory;
+import uia.dao.DaoFactoryTool;
+import uia.dao.Database;
+import uia.dao.pg.PostgreSQL;
+
+public class AATest {
+
+    @Test
+    public void testTable() throws Exception {
+        String sourceDir = "E:/fw/auth/auth-db/src/main/java/";
+
+        String tableOrView = "auth_security";
+
+        Database db = new PostgreSQL("localhost", "5432", "authdb", "auth", "auth");
+        DaoFactoryTool tool = new DaoFactoryTool(db);
+        tool.toDTO(sourceDir, "uia.auth.db", tableOrView);
     }
 
-    public static Connection create() throws SQLException {
-        if ("HANA".equals(System.getProperty("auth.db.env"))) {
-            return Hana.create();
+    @Test
+    public void test() throws Exception {
+    	AuthDB.config();
+    	
+        DaoFactory factory = new DaoFactory();
+        factory.load("uia.auth.db");
+        try(Connection conn = AuthDB.create()) {
+            factory.test(conn);
         }
-        else {
-            return Postgres.create();
-        }
+        
     }
 }

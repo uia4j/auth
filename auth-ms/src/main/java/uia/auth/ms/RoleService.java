@@ -8,7 +8,7 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.AuthHandler;
 import uia.auth.db.AuthRole;
-import uia.auth.db.conf.DB;
+import uia.auth.db.conf.AuthDB;
 import uia.auth.db.dao.AuthRoleDao;
 
 /**
@@ -31,7 +31,7 @@ public class RoleService extends AppService {
     private void queryRoles(RoutingContext ctx) {
 		HttpServerResponse response = ctx.response();
 		response.setChunked(true);
-    	try(Connection conn = DB.create()) {
+    	try(Connection conn = AuthDB.create()) {
     		AuthRoleDao dao = new AuthRoleDao(conn);
     		List<AuthRole> roles = dao.selectAll();
     		response

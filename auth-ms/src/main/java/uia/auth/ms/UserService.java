@@ -14,7 +14,7 @@ import uia.auth.AuthFuncHelper;
 import uia.auth.AuthValidator;
 import uia.auth.AuthValidator.AccessType;
 import uia.auth.db.AuthUser;
-import uia.auth.db.conf.DB;
+import uia.auth.db.conf.AuthDB;
 import uia.auth.db.dao.AuthUserDao;
 
 /**
@@ -49,7 +49,7 @@ public class UserService extends AppService {
     private void queryUsers(RoutingContext ctx) {
 		HttpServerResponse response = ctx.response();
 		response.setChunked(true);
-    	try(Connection conn = DB.create()) {
+    	try(Connection conn = AuthDB.create()) {
     		AuthUserDao dao = new AuthUserDao(conn);
     		List<AuthUser> users = dao.selectAll();
     		response
@@ -67,7 +67,7 @@ public class UserService extends AppService {
     	  
     	HttpServerResponse response = ctx.response();
 		response.setChunked(true);
-    	try(Connection conn = DB.create()) {
+    	try(Connection conn = AuthDB.create()) {
     		AuthUserDao dao = new AuthUserDao(conn);
     		AuthUser user = dao.selectByUserId(userId);
     		response

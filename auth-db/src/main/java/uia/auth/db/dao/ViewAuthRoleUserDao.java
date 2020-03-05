@@ -1,50 +1,32 @@
+/*******************************************************************************
+ * Copyright 2019 UIA
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
 package uia.auth.db.dao;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
 
-import uia.auth.db.AuthRoleUserView;
+import uia.auth.db.ViewAuthRoleUser;
+import uia.auth.db.conf.AuthDB;
+import uia.dao.ViewDao;
 
-public class ViewAuthRoleUserDao {
-
-    private static final String SQL_SEL = "SELECT auth_user,auth_role,role_name,role_enabled,user_id,user_name,user_enabled,seed,mobile_no,email FROM view_auth_role_user ";
-
-    private final Connection conn;
+public class ViewAuthRoleUserDao extends ViewDao<ViewAuthRoleUser> {
 
     public ViewAuthRoleUserDao(Connection conn) {
-        this.conn = conn;
-    }
-
-    public List<AuthRoleUserView> selectAll() throws SQLException {
-        ArrayList<AuthRoleUserView> result = new ArrayList<AuthRoleUserView>();
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_SEL + "ORDER BY role_name,user_id")) {
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                result.add(convert(rs));
-            }
-            return result;
-        }
-    }
-
-    private AuthRoleUserView convert(ResultSet rs) throws SQLException {
-        AuthRoleUserView data = new AuthRoleUserView();
-
-        int index = 1;
-        data.setAuthUser(rs.getLong(index++));
-        data.setAuthRole(rs.getLong(index++));
-        data.setRoleName(rs.getString(index++));
-        data.setRoleEnabled(rs.getString(index++));
-        data.setUserId(rs.getString(index++));
-        data.setUserName(rs.getString(index++));
-        data.setUserEnabled(rs.getString(index++));
-        data.setPwd(rs.getString(index++));
-        data.setMobileNo(rs.getString(index++));
-        data.setEmail(rs.getString(index++));
-
-        return data;
+    	super(conn, AuthDB.forView(ViewAuthRoleUser.class));
     }
 }

@@ -19,67 +19,68 @@
 package uia.auth.db;
 
 import uia.dao.annotation.ColumnInfo;
-import uia.dao.annotation.TableInfo;
+import uia.dao.annotation.ViewInfo;
 
-@TableInfo(name = "auth_func")
-public class AuthFunc {
-
-	@ColumnInfo(name = "id", primaryKey = true)
-    private long id;
+@ViewInfo(name = "view_auth_func_role", inherit = 1)
+public class ViewAuthFuncRole extends AuthFuncRole {
 
 	@ColumnInfo(name = "func_name")
     private String funcName;
 
-	@ColumnInfo(name = "parent_func")
-    private long parentFunc;
-
 	@ColumnInfo(name = "func_description")
     private String funcDescription;
 
+	@ColumnInfo(name = "role_name")
+    private String roleName;
+
+	@ColumnInfo(name = "role_enabled")
+    private String roleEnabled;
+    
 	@ColumnInfo(name = "func_args")
     private String funcArgs;
 
-    public AuthFunc() {
+    public ViewAuthFuncRole() {
     }
 
-    public AuthFunc(AuthFunc data) {
-        this.id = data.id;
+    public ViewAuthFuncRole(ViewAuthFuncRole data) {
+        super(data); 
         this.funcName = data.funcName;
-        this.parentFunc = data.parentFunc;
         this.funcDescription = data.funcDescription;
+        this.roleName = data.roleName;
+        this.roleEnabled = data.roleEnabled;
         this.funcArgs = data.funcArgs;
     }
 
-    public long getId() {
-        return this.id;
-    }
-
-    public void setId(long id) {
-        this.id = id;
-    }
-
     public String getFuncName() {
-        return this.funcName;
-    }
+		return funcName;
+	}
 
-    public void setFuncName(String funcName) {
-        this.funcName = funcName;
-    }
+	public void setFuncName(String funcName) {
+		this.funcName = funcName;
+	}
 
-    public long getParentFunc() {
-        return this.parentFunc;
-    }
-
-    public void setParentFunc(long parentFunc) {
-        this.parentFunc = parentFunc;
-    }
-
-    public String getFuncDescription() {
+	public String getFuncDescription() {
 		return funcDescription;
 	}
 
 	public void setFuncDescription(String funcDescription) {
 		this.funcDescription = funcDescription;
+	}
+
+	public String getRoleName() {
+		return roleName;
+	}
+
+	public void setRoleName(String roleName) {
+		this.roleName = roleName;
+	}
+
+	public String getRoleEnabled() {
+		return roleEnabled;
+	}
+
+	public void setRoleEnabled(String roleEnabled) {
+		this.roleEnabled = roleEnabled;
 	}
 
 	public String getFuncArgs() {
@@ -90,12 +91,13 @@ public class AuthFunc {
 		this.funcArgs = funcArgs;
 	}
 
-    public AuthFunc copy() {
-        return new AuthFunc(this);
+    @Override
+    public ViewAuthFuncRole copy() {
+        return new ViewAuthFuncRole(this);
     }
 
     @Override
     public String toString() {
-        return this.funcName;
+        return String.format("%6s.%-30s %-20s %s", getAuthFunc(), this.funcName, this.roleName, this.getAccessType());
     }
 }

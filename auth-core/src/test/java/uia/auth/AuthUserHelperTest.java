@@ -6,7 +6,7 @@ import org.junit.Test;
 
 import uia.auth.AuthFuncHelper;
 import uia.auth.AuthUserHelper;
-import uia.auth.db.AuthFuncRoleView;
+import uia.auth.db.ViewAuthFuncRole;
 
 public class AuthUserHelperTest {
 
@@ -75,9 +75,9 @@ public class AuthUserHelperTest {
 
         auHelper.searchRoles().forEach(r -> {
             try {
-                List<AuthFuncRoleView> result = afHelper.searchRoleFuncs(r.getId());
+                List<ViewAuthFuncRole> result = afHelper.searchRoleFuncs(r.getId());
                 System.out.println(r.getRoleName());
-                for (AuthFuncRoleView afr : result) {
+                for (ViewAuthFuncRole afr : result) {
                     System.out.println(" " + afr);
                 }
             }

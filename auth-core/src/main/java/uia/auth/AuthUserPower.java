@@ -17,6 +17,8 @@ public class AuthUserPower {
     public boolean enabled;
 
     public boolean userLevel;
+    
+    public String args;
 
     public long getAuthFunc() {
         return this.authFunc;
@@ -82,7 +84,15 @@ public class AuthUserPower {
         this.userLevel = userLevel;
     }
     
-    @Override
+    public String getArgs() {
+		return args;
+	}
+
+	public void setArgs(String args) {
+		this.args = args;
+	}
+
+	@Override
     public String toString() {
     	return this.accessType;
     }

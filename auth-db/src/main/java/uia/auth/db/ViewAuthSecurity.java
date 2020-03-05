@@ -19,59 +19,61 @@
 package uia.auth.db;
 
 import uia.dao.annotation.ColumnInfo;
-import uia.dao.annotation.TableInfo;
+import uia.dao.annotation.ViewInfo;
 
-@TableInfo(name = "auth_role")
-public class AuthRole {
+@ViewInfo(name = "view_auth_security", inherit = 1)
+public class ViewAuthSecurity extends AuthSecurity {
 
-	@ColumnInfo(name = "id", primaryKey = true)
-    private long id;
-
-	@ColumnInfo(name = "role_name")
-    private String roleName;
+	@ColumnInfo(name = "user_id")
+    private String userId;
 
 	@ColumnInfo(name = "enabled")
     private String enabled;
 
-    public AuthRole() {
-    }
+	@ColumnInfo(name = "seed")
+    private String seed;
 
-    public AuthRole(AuthRole data) {
-        this.id = data.id;
-        this.roleName = data.roleName;
+    public ViewAuthSecurity() {
+    }	
+
+    public ViewAuthSecurity(ViewAuthSecurity data) {
+    	super(data);
+        this.userId = data.userId;
         this.enabled = data.enabled;
-    }
+        this.seed = data.seed;
+    }	
 
-    public long getId() {
-        return this.id;
-    }
+	public String getUserId() {
+		return userId;
+	}
 
-    public void setId(long id) {
-        this.id = id;
-    }
+	public void setUserId(String userId) {
+		this.userId = userId;
+	}
 
-    public String getRoleName() {
-        return this.roleName;
-    }
+	public String getEnabled() {
+		return enabled;
+	}
 
-    public void setRoleName(String roleName) {
-        this.roleName = roleName;
-    }
+	public void setEnabled(String enabled) {
+		this.enabled = enabled;
+	}
 
-    public String getEnabled() {
-        return this.enabled;
-    }
+	public String getSeed() {
+		return seed;
+	}
 
-    public void setEnabled(String enabled) {
-        this.enabled = enabled;
-    }
+	public void setSeed(String seed) {
+		this.seed = seed;
+	}
 
-    public AuthRole copy() {
-        return new AuthRole(this);
+    @Override
+    public ViewAuthSecurity copy() {
+    	return new ViewAuthSecurity(this);
     }
 
     @Override
     public String toString() {
-        return String.format("%6s(%s). %-30s", this.id, this.enabled, this.roleName);
+        return String.format("%s(%s)", this.userId, getAuthUser());
     }
 }

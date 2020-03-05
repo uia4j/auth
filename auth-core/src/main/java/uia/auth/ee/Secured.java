@@ -11,10 +11,15 @@ import javax.ws.rs.NameBinding;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.TYPE, ElementType.METHOD })
 public @interface Secured {
+	
+	enum StrategyType {
+		AND, 
+		OR
+	}
 
-    boolean authentication() default false;
+    boolean admin() default false;
 
     String[] authorization() default {};
     
-    boolean priority() default true;
+    StrategyType strategy() default StrategyType.AND;
 }

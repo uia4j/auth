@@ -1,3 +1,21 @@
+/*******************************************************************************
+ * Copyright 2019 UIA
+ *
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *******************************************************************************/
 package uia.auth.db.dao;
 
 import java.sql.Connection;
@@ -5,70 +23,45 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-import uia.auth.db.AuthSecurityView;
+import uia.auth.db.ViewAuthSecurity;
+import uia.auth.db.conf.AuthDB;
+import uia.dao.DaoException;
+import uia.dao.DaoMethod;
+import uia.dao.ViewDao;
 
-public class ViewAuthSecurityDao {
-
-    private static final String SQL_SEL = "SELECT auth_user,password,token,token_expired,token_expired_short,user_id,enabled,seed FROM view_auth_security ";
-    
-    private final Connection conn;
+public class ViewAuthSecurityDao extends ViewDao<ViewAuthSecurity> {
 
     public ViewAuthSecurityDao(Connection conn) {
-        this.conn = conn;
+    	super(conn, AuthDB.forView(ViewAuthSecurity.class));
     }
 
-    public AuthSecurityView selectByUserId(long authUser) throws SQLException {
-        AuthSecurityView result = null;
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_SEL + "WHERE auth_user=?")) {
+    public ViewAuthSecurity selectByUserId(long authUser) throws SQLException, DaoException {
+    	DaoMethod<ViewAuthSecurity> method = this.viewHelper.forSelect();
+        try (PreparedStatement ps = this.conn.prepareStatement(method.getSql() + "WHERE auth_user=?")) {
         	ps.setLong(1, authUser);
-        	
-            ResultSet rs = ps.executeQuery();
-            if(rs.next()) {
-                result = convert(rs);
+            try(ResultSet rs = ps.executeQuery()) {
+            	return method.toOne(rs);
             }
-            return result;
         }
     }    
 
-    public AuthSecurityView selectByUserId(String userId) throws SQLException {
-        AuthSecurityView result = null;
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_SEL + "WHERE user_id=?")) {
+    public ViewAuthSecurity selectByUserId(String userId) throws SQLException, DaoException {
+    	DaoMethod<ViewAuthSecurity> method = this.viewHelper.forSelect();
+        try (PreparedStatement ps = this.conn.prepareStatement(method.getSql() + "WHERE user_id=?")) {
         	ps.setString(1, userId);
-        	
-            ResultSet rs = ps.executeQuery();
-            if(rs.next()) {
-                result = convert(rs);
+            try(ResultSet rs = ps.executeQuery()) {
+            	return method.toOne(rs);
             }
-            return result;
         }
     }    
 
-    public AuthSecurityView selectBySession(String session) throws SQLException {
-        AuthSecurityView result = null;
-        try (PreparedStatement ps = this.conn.prepareStatement(SQL_SEL + "WHERE token=?")) {
+    public ViewAuthSecurity selectBySession(String session) throws SQLException, DaoException {
+    	DaoMethod<ViewAuthSecurity> method = this.viewHelper.forSelect();
+        try (PreparedStatement ps = this.conn.prepareStatement(method.getSql() + "WHERE token=?")) {
         	ps.setString(1, session);
-        	
-            ResultSet rs = ps.executeQuery();
-            if(rs.next()) {
-                result = convert(rs);
+            try(ResultSet rs = ps.executeQuery()) {
+            	return method.toOne(rs);
             }
-            return result;
         }
     }    
-    
-    private AuthSecurityView convert(ResultSet rs) throws SQLException {
-        AuthSecurityView data = new AuthSecurityView();
-        
-        int index = 1;
-        data.setAuthUser(rs.getInt(index++));
-        data.setPassword(rs.getString(index++));
-        data.setToken(rs.getString(index++));
-        data.setTokenExpired(rs.getTimestamp(index++));
-        data.setTokenExpiredShort(rs.getTimestamp(index++));
-        data.setUserId(rs.getString(index++));
-        data.setEnabled(rs.getString(index++));
-        data.setSeed(rs.getString(index++));
-
-        return data;
-    }
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2018 UIA
+ * Copyright 2019 UIA
  *
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements. See the NOTICE file distributed with
@@ -21,18 +21,13 @@ package uia.auth.db.conf;
 import java.sql.Connection;
 import java.sql.SQLException;
 
-/**
- *
- * @author Q. Foison Tech
- *
- */
 public class Postgres {
 
-    private static String CONN;
+    private static String pgConn;
 
-    private static String USER;
+    private static String pgUser;
 
-    private static String PWD;
+    private static String pgPwd;
 
     static {
         try {
@@ -42,25 +37,28 @@ public class Postgres {
 
         }
 
-        if (System.getProperties().get("pms.db.connection") == null) {
-            CONN = "jdbc:postgresql://localhost:5432/authdb";
-            USER = "auth";
-            PWD = "auth";
+        if (System.getProperties().get("auth.db.connection") == null) {
+            pgConn = "jdbc:postgresql://localhost:5432/authdb";
+            pgUser = "auth";
+            pgPwd = "auth";
         }
         else {
-            CONN = "" + System.getProperties().get("auth.db.connection");
-            USER = "" + System.getProperties().get("auth.db.user");
-            PWD = "" + System.getProperties().get("auth.db.pwd");
+            pgConn = "" + System.getProperties().get("auth.db.connection");
+            pgUser = "" + System.getProperties().get("auth.db.user");
+            pgPwd = "" + System.getProperties().get("auth.db.pwd");
         }
+    }
+
+    private Postgres() {
     }
 
     public static void config(String conn, String user, String pwd) {
-        CONN = conn;
-        USER = user;
-        PWD = pwd;
+        pgConn = conn;
+        pgUser = user;
+        pgPwd = pwd;
     }
 
     public static Connection create() throws SQLException {
-        return java.sql.DriverManager.getConnection(CONN, USER, PWD);
+        return java.sql.DriverManager.getConnection(pgConn, pgUser, pgPwd);
     }
 }

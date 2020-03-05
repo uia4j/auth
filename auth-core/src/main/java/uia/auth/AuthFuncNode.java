@@ -17,6 +17,8 @@ public class AuthFuncNode {
 	
 	private String description;
 	
+	private String args;
+	
 	private long parentId;
 	
 	private AccessType accessType;
@@ -32,12 +34,13 @@ public class AuthFuncNode {
 		this.nodes = new ArrayList<AuthFuncNode>();
 	}
 	
-	public AuthFuncNode(long id, String name, String description, long parentId) {
+	public AuthFuncNode(long id, String name, String description, String args, long parentId) {
 		this.level = 1;
-		this.nodes = new ArrayList<AuthFuncNode>();
+		this.nodes = new ArrayList<>();
 		this.id = id;
 		this.name = name;
 		this.description = description;
+		this.args = args;
 		this.parentId = parentId;
 		this.accessType = AccessType.UNKNOWN;
 	}
@@ -66,6 +69,10 @@ public class AuthFuncNode {
 		return this.description;
 	}
 	
+	public String getArgs() {
+		return args;
+	}
+
 	public List<AuthFuncNode> getNodes() {
 		return this.nodes;
 	}
